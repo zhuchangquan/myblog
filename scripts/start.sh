@@ -1,31 +1,46 @@
 #!/bin/sh
+CURR_PATH=$(cd "$(dirname "$0")";pwd)
+APP_DIR=$(dirname $CURR_PATH)
+cd $APP_DIR
 
-#定义程序名 及jar包的名
-PROJECT_NAME=MyBlog-0.0.1-SNAPSHOT.jar
+PROG=
 
-## 编写判断程序是否正在运行的方法
-isExist(){
-	## 首先查找进程号
-    pid=`ps -ef | grep ${PROJECT_NAME} | grep -v grep | awk '{print $2}'`
-    ## 如果进程号不存在，则返回0 否则返回1
-    if [ -z "${pid}" ]; then
-    	return 0
+if[ ! -d $APP_DIR/logs/dump]; then
+    mkdir -p $APP_DIR/logs/dump
+fi
+
+if[ ! -d $APP_DIR/logs/gc]; then
+    mkdir -p $APP_DIR/logs/gc
+fi
+
+touch $APP_DIR/logs/gc/GCLog
+
+JAVA_OPTS="-Xmx 5024m -XX:+useG1GC -XX:MaxGcPauseMills=200 -XX:+HeapDumpOnOutofMemoryError -XX:HeapDumpPath=$APP_DIR/logs/dump"
+JAVA_OPTS="$JAVA_OPTS -XX:PrintGCDetails"
+JAVA_OPTS="$JAVA_OPTS -XX:PrintGCDateStamps"
+JAVA_OPTS="$JAVA_OPTS -Xloggc:$APP_DIR/logs/gc/GCLog"
+RUN_JAR=
+
+status(){
+    PIDs=$(ps -ef | grep $PROG | grep -v grep | awk '{print $2}')
+    if["XPIDs" = "X"]; then
+        return 1
     else
-    	return 1
+        return 0
     fi
 }
+status
+RETVAL=$?
+if[$RETVAL -eq 0]; then
+    echo "process is already running.pid : $PIDs"
+    exit 1
+fi
+echo "starting $PROG ..."
+java -server $JAVA_OPTS -jar $RUN_JAR > /dev/null 2>&1 &
+RETVAL=$?
 
-start(){
-	## 调用 判断程序是否正在运行的方法
-    isExist
-    ## 判断方法返回值是否等于0 ，等于则不存在
-    if [ $? -eq "0" ]; then
-    	echo "${PROJECT_NAME} is starting ......"
-    	nohup java -Xms512m -Xmx1024m -jar ${PROJECT_NAME} > ./log/startup.log 2>&1 &
-    	echo "${PROJECT_NAME} startup success"
-    else
-    	echo "${PROJECT_NAME} is running, pid=${pid} "
-    fi
-}
-
-start
+if[$RETVAL -eq 0]; then
+    echo "$PROG is started. pid : $!"
+else
+    echo "$PROG start failed"
+fi
